@@ -2,6 +2,7 @@ import adafruit_requests
 import socketpool
 import ssl
 import wifi
+from adafruit_datetime import datetime
 from adafruit_funhouse import FunHouse
 
 funhouse = FunHouse(default_bg=None)
@@ -11,6 +12,8 @@ FEED = "temperature"
 TEMPERATURE_OFFSET = (
     5  # Degrees C to adjust the temperature to compensate for board produced heat
 )
+HOUR_START = 21
+HOUR_END = 7
 
 # Turn things off
 funhouse.peripherals.dotstars.fill(0)
@@ -33,6 +36,15 @@ def setup_requests(secrets):
     requests = adafruit_requests.Session(pool, ssl.create_default_context())
     return requests
 
+def get_time(secrets) -> datetime:
+    aio_username = secrets["aio_username"]
+    aio_key = secrets["aio_key"]
+    location = secrets["timezone"]
+    TIME_URL = "https://io.adafruit.com/api/v2/%s/integrations/time/strftime?x-aio-key=%s" % (aio_username, aio_key)
+    TIME_URL += "&fmt=%25Y-%25m-%25dT%25H%3A%25M%3A%25S.%25L"
+    datetime_str = requests.get(TIME_URL).text
+    return datetime.fromisoformat(datetime_str)
+
 
 secrets = get_secrets()
 requests = setup_requests(secrets)
@@ -49,6 +61,12 @@ def log_data():
     funhouse.network.connect()
     # Push to IO using REST
     # funhouse.push_to_io(FEED, fahr_temp)
+
+    current_datetime = get_time(secrets)
+    if current_datetime.hour >= HOUR_END and current_datetime.hour < HOUR_START:
+        print("Current date time %s" % (current_datetime.isoformat()))
+        print("Sleeping during the day...")
+        return
 
     response = requests.post(secrets["server_url"], json={
         "temperature": fahr_temp,
@@ -71,5 +89,5 @@ def log_data():
 
 while True:
     log_data()
-    print("Sleeping for {} seconds...".format(DELAY))
+    print("Will check back in {} seconds...".format(DELAY))
     funhouse.enter_light_sleep(DELAY)
