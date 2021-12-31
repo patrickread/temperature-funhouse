@@ -36,14 +36,25 @@ def setup_requests(secrets):
     requests = adafruit_requests.Session(pool, ssl.create_default_context())
     return requests
 
+
 def get_time(secrets) -> datetime:
     aio_username = secrets["aio_username"]
     aio_key = secrets["aio_key"]
     location = secrets["timezone"]
-    TIME_URL = "https://io.adafruit.com/api/v2/%s/integrations/time/strftime?x-aio-key=%s" % (aio_username, aio_key)
+    TIME_URL = "https://io.adafruit.com/api/v2/%s/integrations/time/strftime?x-aio-key=%s" % (
+        aio_username, aio_key
+    )
     TIME_URL += "&fmt=%25Y-%25m-%25dT%25H%3A%25M%3A%25S.%25L"
     datetime_str = requests.get(TIME_URL).text
     return datetime.fromisoformat(datetime_str)
+
+
+def calibrate_temp(temperature):
+    return temperature - TEMPERATURE_OFFSET
+
+
+def convert_to_fahr(cel_temp):
+    return (9 / 5) * cel_temp + 32
 
 
 secrets = get_secrets()
@@ -51,8 +62,8 @@ requests = setup_requests(secrets)
 
 
 def log_data():
-    cel_temp = funhouse.peripherals.temperature - TEMPERATURE_OFFSET
-    fahr_temp = (9/5) * cel_temp + 32
+    cel_temp = calibrate_temp(funhouse.peripherals.temperature)
+    fahr_temp = convert_to_fahr(cel_temp)
     print("Logging Temperature")
     print("Temperature %0.1F" % (fahr_temp))
     # Turn on WiFi
